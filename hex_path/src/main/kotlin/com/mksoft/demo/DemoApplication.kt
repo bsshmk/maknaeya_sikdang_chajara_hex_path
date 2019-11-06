@@ -13,8 +13,8 @@ import org.locationtech.jts.geom.MultiLineString
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import java.io.File
-import java.io.FileWriter
 import java.nio.charset.Charset
+import java.util.*
 
 
 @SpringBootApplication
@@ -25,13 +25,49 @@ private val center = Point(126.978955, 37.550396)
 var layout = Layout(Layout.pointy, Point(rate * 0.0001, 0.0001), center)
 val gf: GeometryFactory = JTSFactoryFinder.getGeometryFactory()
 
-val hexSet: MutableSet<Hex> = HashSet<Hex>()
+val hexSet: MutableSet<HexData> = mutableSetOf()
+val hexSetText:MutableSet<Hex> = mutableSetOf()
 val hexData:MutableList<HexData> = mutableListOf()
+
 
 val hexPathName ="C:\\Users\\cmk54\\Downloads\\hex_path_file\\"+"testHexData.txt"
 val res = File("C:\\Users\\cmk54\\Downloads\\hex_path_file\\" + "TL_SPRD_MANAGE.shp")
 val shpFiles: ShpFiles = ShpFiles(res)
 
+fun searchNearHexIDX(latitude:Double, longitude:Double):HexData{
+    val hex:FractionalHex = layout.pixelToHex(Point(longitude, latitude))
+
+    val roundHex = FractionalHex.hexLinedraw( hex.hexRound(), hex.hexRound())
+    val convertPoint = layout.hexToPixel(roundHex[0])
+    val hexData = HexData(roundHex[0].q, roundHex[0].r,roundHex[0].s)
+    if(hexSet.contains(hexData)){
+        return hexData
+    }
+    val hexDirections = Hex.directions
+    val currentHex = roundHex[0]
+    var resultHex: HexData? = HexData(0,0,0)
+    var distance = 987654321
+    for(hexDirection in hexDirections){
+        var hexDepth = 0
+        var nextHex = currentHex
+        while(true){
+            if(hexDepth==20)
+                break
+            nextHex = nextHex.add(hexDirection)
+
+            if(hexSet.contains(HexData(nextHex.q, nextHex.r, nextHex.s))&&distance> kotlin.math.abs(currentHex.distance(nextHex))){
+                distance = currentHex.distance(nextHex)
+                resultHex = HexData(nextHex.q, nextHex.r, nextHex.s)
+
+                break
+            }
+            hexDepth++
+
+        }
+
+    }
+    return resultHex!!
+}
 fun main(args: Array<String>) {
     runApplication<DemoApplication>(*args)
     val fileName = res.absolutePath
@@ -43,6 +79,8 @@ fun main(args: Array<String>) {
     val numFields = header.numFields
 
     var WDR_RD_CD_FIELD = 0
+
+
     for (iField in 0 until numFields) {
         val fieldName = header.getFieldName(iField)
         if ("WDR_RD_CD".equals(fieldName)) {
@@ -81,8 +119,8 @@ fun main(args: Array<String>) {
                 if(prev != null){
                     val hexes:MutableList<Hex> = FractionalHex.hexLinedraw(prev.hexRound(), cur.hexRound())
                     for(hex in hexes){
-                        //hexSet.add(hex)
-                        hexData.add(HexData(layout.hexToPixel(hex).y, layout.hexToPixel(hex).x, hex.length(), hex))
+                        hexSet.add(HexData(hex.q, hex.r, hex.s))
+                        //hexData.add(HexData(layout.hexToPixel(hex).y, layout.hexToPixel(hex).x, hex.length(), hex))
                     }//유니크함을 보장하기 위하여 set 사용,
                     //cost는 1로 만들고 a스타?
                     //
@@ -92,10 +130,21 @@ fun main(args: Array<String>) {
 
         }
     }
-    val hexFile = File(hexPathName)
-    val fw = FileWriter(hexFile, true)
-    fw.write(hexData.toString())
-    fw.flush()
-    fw.close()
+
+    val sc = Scanner(System.`in`)
+    while(true){
+        val a = sc.nextDouble()
+        val b = sc.nextDouble()
+        val test = searchNearHexIDX(a,b)
+        val result = layout.hexToPixel(Hex(test.q, test.r, test.s))
+        println(result.y)
+        println(result.x)
+
+    }
+//    val hexFile = File(hexPathName)
+//    val fw = FileWriter(hexFile, true)
+//    fw.write(hexData.toString())
+//    fw.flush()
+//    fw.close()
     return
 }
